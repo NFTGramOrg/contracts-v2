@@ -59,9 +59,9 @@ namespace NFTAccounts
         private const byte Prefix_Accounts=0x01;
         private const byte Prefix_ContractOwner = 0xFF;
 
-        public delegate void OnAccountInitializedDelegate(UInt160 nftScriptHash, ByteString tokenId, BigInteger kind, BigInteger funny, BigInteger sad, BigInteger angry);
+        public delegate void OnAccountInitializedDelegate(UInt160 nftScriptHash, ByteString tokenId,BigInteger salt, BigInteger kind, BigInteger funny, BigInteger sad, BigInteger angry);
         public delegate void OnPostedDelegate(ByteString postId,ByteString accountId, string content);
-        public delegate void OnFollowedDelegate(ByteString followerAccountId,ByteString followingAccountId);
+        public delegate void OnFollowedDelegate(ByteString followerAccountId,ByteString followingAccountId,BigInteger followersCount,BigInteger followingCount);
         public delegate void OnUnfollowedDelegate(ByteString unfollowingAccountId,ByteString unfollowedAccountId);
         public delegate void OnReactedDelegate(ByteString postId, ByteString reactedAccountId,ByteString receivedAccountId,Reaction reaction);
 
@@ -130,8 +130,8 @@ namespace NFTAccounts
             account.following=new Map<ByteString, bool>();
 
             accounts.Put(accountId, StdLib.Serialize(account));
+            OnAccountInitialized(nftScriptHash,tokenId,salt,kind,funny,sad,angry);
 
-            OnAccountInitialized(nftScriptHash,tokenId,kind,funny,sad,angry);
         }
 
         public static void Post(ByteString accountId,string prompt)
@@ -145,7 +145,7 @@ namespace NFTAccounts
 
             Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
             UInt160 nftOwner=GetOwner(account.nftScriptHash, account.tokenId);
-            if (Runtime.CheckWitness(nftOwner))
+            if (!Runtime.CheckWitness(nftOwner))
             {
                 throw new Exception("Unauthorized");
             }
@@ -190,7 +190,7 @@ namespace NFTAccounts
 
             account.posts[postId]=post;
 
-            Storage.Put(Storage.CurrentContext, accountId, StdLib.Serialize(account));            
+            accounts.Put(accountId, StdLib.Serialize(account));
 
             OnPosted(postId,accountId, content);
         }
@@ -212,7 +212,7 @@ namespace NFTAccounts
             Account receiverAccount = (Account)StdLib.Deserialize(accounts.Get(receiverAccountId));
             UInt160 nftOwner=GetOwner(userAccount.nftScriptHash,userAccount.tokenId);
 
-            if (Runtime.CheckWitness(nftOwner))
+            if (!Runtime.CheckWitness(nftOwner))
             {
                 throw new Exception("not owner");
             }
@@ -240,8 +240,9 @@ namespace NFTAccounts
                 receiverAccount.popularity-=1;
             }
             receiverAccount.popularity+=1;
+
+            accounts.Put(receiverAccountId, StdLib.Serialize(receiverAccount));
             
-            Storage.Put(Storage.CurrentContext, receiverAccountId, StdLib.Serialize(receiverAccount));
             
             OnReacted(postId, userAccountId,receiverAccountId, reaction);
             
@@ -265,14 +266,16 @@ namespace NFTAccounts
             UInt160 nftOwner=GetOwner(followerAccount.nftScriptHash,followerAccount.tokenId);
 
 
-            if (Runtime.CheckWitness(nftOwner))
+            if (!Runtime.CheckWitness(nftOwner))
             {
                 throw new Exception("not owner");
             }
-            if(followingAccount.followers[followerAccountId]==true)
-            {
-                throw new Exception("already following");
-            }
+
+            // if(followingAccount.followers[followerAccountId]!=null&&followingAccount.followers[followerAccountId]==true)
+            // {
+            //     throw new Exception("already following");
+            // }
+           
             followingAccount.followers[followerAccountId]=true;
             followingAccount.followersCount+=1;
             followingAccount.popularity+=1;
@@ -280,7 +283,11 @@ namespace NFTAccounts
             followerAccount.following[followingAccountId]=true;
             followerAccount.followingCount+=1;
 
-            OnFollowed(followerAccountId, followingAccountId);
+            accounts.Put(followerAccountId, StdLib.Serialize(followerAccount));
+            accounts.Put(followingAccountId, StdLib.Serialize(followingAccount));
+
+
+            OnFollowed(followerAccountId, followingAccountId,followingAccount.followersCount,followerAccount.followingCount);
         }
 
         public static void UnFollow(ByteString unfollowerAccountId,ByteString unfollowingAccountId)
@@ -299,15 +306,15 @@ namespace NFTAccounts
 
             UInt160 nftOwner=GetOwner(unfollowerAccount.nftScriptHash,unfollowerAccount.tokenId);
 
-            if (Runtime.CheckWitness(nftOwner))
+            if (!Runtime.CheckWitness(nftOwner))
             {
                 throw new Exception("not owner");
             }
 
-            if(unfollowingAccount.followers[unfollowerAccountId]==false)
-            {
-                throw new Exception("not following");
-            }
+            // if(unfollowingAccount.followers[unfollowerAccountId]==false)
+            // {
+            //     throw new Exception("not following");
+            // }
             unfollowingAccount.followers[unfollowerAccountId]=false;
             unfollowingAccount.followersCount-=1;
             unfollowingAccount.popularity-=1;
@@ -315,12 +322,22 @@ namespace NFTAccounts
             unfollowerAccount.following[unfollowingAccountId]=false;
             unfollowerAccount.followingCount-=1;
 
+            accounts.Put(unfollowerAccountId, StdLib.Serialize(unfollowerAccount));
+            accounts.Put(unfollowingAccountId, StdLib.Serialize(unfollowingAccount));
+
+
             OnUnfollowed(unfollowerAccountId, unfollowingAccountId);
         }
         public static UInt160 GetOwner(UInt160 nftScriptHash, ByteString tokenId)
         {
             UInt160 owner=(UInt160)Contract.Call(nftScriptHash, "ownerOf", CallFlags.All, tokenId);
             return owner;
+        }
+
+        public static bool Verify(UInt160 nftScriptHash, ByteString tokenId)
+        {
+            UInt160 owner=(UInt160)Contract.Call(nftScriptHash, "ownerOf", CallFlags.All, tokenId);
+            return Runtime.CheckWitness(owner);
         }
 
         public static void DeleteAccount(ByteString accountId)
@@ -333,11 +350,59 @@ namespace NFTAccounts
             Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
             UInt160 nftOwner=GetOwner(account.nftScriptHash,account.tokenId);
 
-            if (Runtime.CheckWitness(nftOwner))
+            if (!Runtime.CheckWitness(nftOwner))
             {
                 throw new Exception("not owner");
             }
-            ContractManagement.Destroy();
+            accounts.Delete(accountId);
+        }
+
+        // Getters
+        public static Account GetAccount(ByteString accountId)
+        {
+            StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
+            if(accounts.Get(accountId)==null)
+            {
+                throw new Exception("Account does not exist");
+            }
+            Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
+            return account;
+        }
+
+        public static Post GetPost(ByteString accountId,ByteString postId)
+        {
+            StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
+            if(accounts.Get(accountId)==null)
+            {
+                throw new Exception("Account does not exist");
+            }
+            Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
+            if(account.posts[postId]==null)
+            {
+                throw new Exception("Post does not exist");
+            }
+            Post post = account.posts[postId];
+            return post;
+        }
+
+        public static bool isFollowing(ByteString followerAccount,ByteString followingAccount)
+        {
+            StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
+            if(accounts.Get(followerAccount)==null)
+            {
+                throw new Exception("Follower Account does not exist");
+            }
+            if(accounts.Get(followingAccount)==null)
+            {
+                throw new Exception("Following Account does not exist");
+            }
+            Account follower = (Account)StdLib.Deserialize(accounts.Get(followerAccount));
+            Account following = (Account)StdLib.Deserialize(accounts.Get(followingAccount));
+            if(following.followers[followerAccount]==null)
+            {
+                return false;
+            }
+            return following.followers[followerAccount];
         }
 
        [DisplayName("_deploy")]
