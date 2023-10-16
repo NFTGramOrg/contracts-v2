@@ -99,6 +99,14 @@ namespace NFTAccounts
             {
                 throw new Exception("Account already exists");
             }
+
+            UInt160 nftOwner=GetOwner(userAccount.nftScriptHash,userAccount.tokenId);
+
+            if (!Runtime.CheckWitness(nftOwner))
+            {
+                throw new Exception("not owner");
+            }
+
             Account account = new Account();
             account.accountId=accountId;
             account.nftScriptHash=nftScriptHash;
