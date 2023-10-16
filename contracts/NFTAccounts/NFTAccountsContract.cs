@@ -271,10 +271,15 @@ namespace NFTAccounts
                 throw new Exception("not owner");
             }
 
-            // if(followingAccount.followers[followerAccountId]!=null&&followingAccount.followers[followerAccountId]==true)
-            // {
-            //     throw new Exception("already following");
-            // }
+            if(followingAccount.followers.HasKey(followerAccountId))
+            {
+                if(followingAccount.followers[followerAccountId]==true)
+                {
+                    throw new Exception("already following");
+                }
+            }
+
+ 
            
             followingAccount.followers[followerAccountId]=true;
             followingAccount.followersCount+=1;
@@ -311,10 +316,16 @@ namespace NFTAccounts
                 throw new Exception("not owner");
             }
 
-            // if(unfollowingAccount.followers[unfollowerAccountId]==false)
-            // {
-            //     throw new Exception("not following");
-            // }
+            if(!unfollowingAccount.followers.HasKey(unfollowerAccountId))
+            {
+
+                throw new Exception("not following");
+            }
+
+            if(unfollowingAccount.followers[unfollowerAccountId]==false)
+            {
+                throw new Exception("not following");
+            }
             unfollowingAccount.followers[unfollowerAccountId]=false;
             unfollowingAccount.followersCount-=1;
             unfollowingAccount.popularity-=1;
@@ -398,7 +409,7 @@ namespace NFTAccounts
             }
             Account follower = (Account)StdLib.Deserialize(accounts.Get(followerAccount));
             Account following = (Account)StdLib.Deserialize(accounts.Get(followingAccount));
-            if(following.followers[followerAccount]==null)
+            if(following.followers.HasKey(followerAccount)==false)
             {
                 return false;
             }
