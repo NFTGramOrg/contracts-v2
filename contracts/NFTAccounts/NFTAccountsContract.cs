@@ -357,17 +357,6 @@ namespace NFTAccounts
 
             OnUnfollowed(unfollowerAccountId, unfollowingAccountId);
         }
-        public static UInt160 GetOwner(UInt160 nftScriptHash, ByteString tokenId)
-        {
-            UInt160 owner=(UInt160)Contract.Call(nftScriptHash, "ownerOf", CallFlags.All, tokenId);
-            return owner;
-        }
-
-        public static bool Verify(UInt160 nftScriptHash, ByteString tokenId)
-        {
-            UInt160 owner=(UInt160)Contract.Call(nftScriptHash, "ownerOf", CallFlags.All, tokenId);
-            return Runtime.CheckWitness(owner);
-        }
 
         public static void DeleteAccount(ByteString accountId)
         {
@@ -387,6 +376,18 @@ namespace NFTAccounts
         }
 
         // Getters
+
+        public static UInt160 GetOwner(UInt160 nftScriptHash, ByteString tokenId)
+        {
+            UInt160 owner=(UInt160)Contract.Call(nftScriptHash, "ownerOf", CallFlags.All, tokenId);
+            return owner;
+        }
+
+        public static bool Verify(UInt160 nftScriptHash, ByteString tokenId)
+        {
+            UInt160 owner=(UInt160)Contract.Call(nftScriptHash, "ownerOf", CallFlags.All, tokenId);
+            return Runtime.CheckWitness(owner);
+        }
         public static Account GetAccount(ByteString accountId)
         {
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
@@ -406,7 +407,7 @@ namespace NFTAccounts
                 throw new Exception("Account does not exist");
             }
             Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
-            if(account.posts[postId]==null)
+            if(!account.posts.HasKey(postId))
             {
                 throw new Exception("Post does not exist");
             }
