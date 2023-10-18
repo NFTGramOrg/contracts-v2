@@ -31,6 +31,8 @@ namespace NFTAccounts
         public BigInteger sad;
         public BigInteger angry;
         public Map<ByteString,Reaction> reactions;
+        public bool isReply;
+        public ByteString replyPostId;
     }
 
     public class Account
@@ -142,7 +144,7 @@ namespace NFTAccounts
 
         }
 
-        public static void Post(ByteString accountId,string prompt)
+        public static void Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
         {
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
@@ -163,7 +165,7 @@ namespace NFTAccounts
             BigInteger? sad = (BigInteger?)account.personality[Reaction.Sad];
             BigInteger? angry = (BigInteger?)account.personality[Reaction.Angry];
 
-            Oracle.Request("https://nftgram.in/api/generate", "$.content", "callback", new object[] {accountId, prompt, kind, funny,sad,angry },Oracle.MinimumResponseFee);
+            Oracle.Request("https://nftgram.in/api/generate", "$.content", "callback", new object[] {accountId,isReply,replyPostId, prompt, kind, funny,sad,angry },Oracle.MinimumResponseFee);
 
         }
         public static void Callback(string requestedUrl, object[] userData, OracleResponseCode oracleResponseCode, string result)
@@ -176,6 +178,8 @@ namespace NFTAccounts
             var content=jsonArrayValues[0];
 
             var accountId=(ByteString)userData[0];
+            var isReply=(bool)userData[1];
+            var replyPostId=(ByteString)userData[2];
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
             Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
@@ -185,6 +189,10 @@ namespace NFTAccounts
             UInt160 prompter=GetOwner(nftScriptHash, tokenId);
 
             ByteString postId = GetPostId(content);
+            if(account.posts.HasKey(postId))
+            {
+                throw new Exception("Post already exists");
+            }
 
             Post post = new Post();
             post.postId = postId;
@@ -194,6 +202,8 @@ namespace NFTAccounts
             post.funny = 0;
             post.sad = 0;
             post.angry = 0;
+            post.isReply=isReply;
+            post.replyPostId=replyPostId;
             post.reactions = new Map<ByteString, Reaction>();
 
             account.posts[postId]=post;
