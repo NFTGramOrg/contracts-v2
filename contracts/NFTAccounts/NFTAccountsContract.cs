@@ -93,7 +93,7 @@ namespace NFTAccounts
             return CryptoLib.Ripemd160(CryptoLib.Sha256(content));
         }
 
-        public static void CreateAccount(UInt160 nftScriptHash,ByteString tokenId){
+        public static ByteString CreateAccount(UInt160 nftScriptHash,ByteString tokenId){
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
             ByteString accountId=GetAccountId(nftScriptHash,tokenId);
 
@@ -141,10 +141,10 @@ namespace NFTAccounts
 
             accounts.Put(accountId, StdLib.Serialize(account));
             OnAccountInitialized(nftScriptHash,tokenId,salt,kind,funny,sad,angry);
-
+            return account.accountId;
         }
 
-        public static void Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
+        public static ByteString Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
         {
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
@@ -160,15 +160,20 @@ namespace NFTAccounts
                 throw new Exception("Unauthorized");
             }
 
-            BigInteger? kind = (BigInteger?)account.personality[Reaction.Kind];
-            BigInteger? funny = (BigInteger?)account.personality[Reaction.Funny];
-            BigInteger? sad = (BigInteger?)account.personality[Reaction.Sad];
-            BigInteger? angry = (BigInteger?)account.personality[Reaction.Angry];
+            string kind = StdLib.Itoa(account.personality[Reaction.Kind]);
+            string funny = StdLib.Itoa(account.personality[Reaction.Funny]);
+            string sad = StdLib.Itoa(account.personality[Reaction.Sad]);
+            string angry = StdLib.Itoa(account.personality[Reaction.Angry]);
 
-            Oracle.Request("https://nftgram.in/api/generate", "$.content", "callback", new object[] {accountId,isReply,replyPostId, prompt, kind, funny,sad,angry },Oracle.MinimumResponseFee);
-
+            Oracle.Request(GetApiUrl(prompt,kind,funny,sad,angry), "$.content", "callback", new object[] {accountId,isReply,replyPostId},Oracle.MinimumResponseFee);
+            return GetPostId(prompt);
         }
-        public static void Callback(string requestedUrl, object[] userData, OracleResponseCode oracleResponseCode, string result)
+
+        public static string GetApiUrl(string prompt,string kind,string funny,string sad,string angry)
+        {
+            return "https://www.nftgram.in/api/generate?prompt="+prompt+"&kind="+kind+"&funny="+funny+"&sad="+sad+"&angry="+angry;
+        }
+        public static void Callback(string requestedUrl, object userData, OracleResponseCode oracleResponseCode, string result)
         {
             if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
 
@@ -177,9 +182,10 @@ namespace NFTAccounts
             var jsonArrayValues=(string[])StdLib.JsonDeserialize(result);
             var content=jsonArrayValues[0];
 
-            var accountId=(ByteString)userData[0];
-            var isReply=(bool)userData[1];
-            var replyPostId=(ByteString)userData[2];
+            var mydata=(object[])userData;
+            var accountId=(ByteString)mydata[0];
+            var isReply=(bool)mydata[1];
+            var replyPostId=(ByteString)mydata[2];
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
             Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
@@ -215,7 +221,7 @@ namespace NFTAccounts
 
       
 
-        public static void React(UInt160 postId,ByteString userAccountId,ByteString receiverAccountId, Reaction reaction)
+        public static void React(ByteString postId,ByteString userAccountId,ByteString receiverAccountId, Reaction reaction)
         {
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
             if(accounts.Get(userAccountId)==null)
