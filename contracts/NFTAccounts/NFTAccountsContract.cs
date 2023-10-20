@@ -171,7 +171,7 @@ namespace NFTAccounts
 
         public static string GetApiUrl(string prompt,string kind,string funny,string sad,string angry)
         {
-            return "https://www.nftgram.in/api/generate?prompt="+prompt+"&kind="+kind+"&funny="+funny+"&sad="+sad+"&angry="+angry;
+            return "https://www.nftgram.in/api/generate?prompt="+prompt;
         }
         public static void Callback(string requestedUrl, object userData, OracleResponseCode oracleResponseCode, string result)
         {

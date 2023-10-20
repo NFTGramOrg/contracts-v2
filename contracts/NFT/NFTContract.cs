@@ -44,7 +44,7 @@ namespace NFT
         public static byte Decimals() => 0;
 
 
-        private static ByteString GetKey(ByteString tokenId) =>
+        public static ByteString GetKey(ByteString tokenId) =>
             CryptoLib.Ripemd160(tokenId);
 
         [Safe]
@@ -77,13 +77,12 @@ namespace NFT
                 throw new Exception("The argument \"tokenId\" is invalid.");
             StorageMap tokenStateMap = new(Storage.CurrentReadOnlyContext, Prefix_TokenState);
             var token = (NFTTokenState)StdLib.Deserialize(tokenStateMap[GetKey(tokenId)]);
-            return new()
-            {
-                ["name"] = token.Name,
-                ["description"] = token.Description,
-                ["tokenURI"] = "https://www.nftgram.in/nft/" + Runtime.ExecutingScriptHash + "?id=" + tokenId,
-                ["image"] = token.Image,
-            };
+            Map<string, object> properties = new();
+            properties["name"] = token.Name;
+            properties["description"] = token.Description;
+            properties["image"] = token.Image;
+            properties["tokenURI"] = "https://www.nftgram.in/nft/" + Runtime.ExecutingScriptHash + "?id=" + tokenId;
+            return properties;
         }
 
         [Safe]
