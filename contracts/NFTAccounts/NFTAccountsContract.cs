@@ -177,7 +177,7 @@ namespace NFTAccounts
             string sad = StdLib.Itoa(account.personality[Reaction.Sad]);
             string angry = StdLib.Itoa(account.personality[Reaction.Angry]);
 
-            Oracle.Request(GetApiUrl(prompt,kind,funny,sad,angry), "$.content", "testing", new object[] {accountId,isReply,replyPostId},Oracle.MinimumResponseFee);
+            Oracle.Request(GetApiUrl(prompt,kind,funny,sad,angry), "$.data.post[*].value", "testing", new object[] {accountId,isReply,replyPostId},Oracle.MinimumResponseFee);
             return GetPostId(prompt);
         }
 
