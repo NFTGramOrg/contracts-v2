@@ -59,7 +59,10 @@ namespace NFTAccounts
     public class NFTAccountsContract : SmartContract
     {
         private const byte Prefix_Accounts=0x01;
+        private const byte Prefix_TokenId = 0x02;
+
         private const byte Prefix_ContractOwner = 0xFF;
+
 
         public delegate void OnAccountInitializedDelegate(UInt160 nftScriptHash, ByteString tokenId,BigInteger salt, BigInteger kind, BigInteger funny, BigInteger sad, BigInteger angry);
         public delegate void OnPostedDelegate(ByteString postId,ByteString accountId, string content);
@@ -93,7 +96,10 @@ namespace NFTAccounts
             return CryptoLib.Ripemd160(CryptoLib.Sha256(content));
         }
 
-        public static ByteString CreateAccount(UInt160 nftScriptHash,ByteString tokenId){
+        public static ByteString CreateAccount(UInt160 nftScriptHash){
+            var key = new byte[] { Prefix_TokenId };
+            var tokenId = (ByteString)Storage.Get(key);
+
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
             ByteString accountId=GetAccountId(nftScriptHash,tokenId);
 
@@ -141,6 +147,8 @@ namespace NFTAccounts
 
             accounts.Put(accountId, StdLib.Serialize(account));
             OnAccountInitialized(nftScriptHash,tokenId,salt,kind,funny,sad,angry);
+            tokenId += 1;
+
             return account.accountId;
         }
 
