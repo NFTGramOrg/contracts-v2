@@ -69,7 +69,11 @@ namespace NFTAccounts
         public delegate void OnFollowedDelegate(ByteString followerAccountId,ByteString followingAccountId,BigInteger followersCount,BigInteger followingCount);
         public delegate void OnUnfollowedDelegate(ByteString unfollowingAccountId,ByteString unfollowedAccountId);
         public delegate void OnReactedDelegate(ByteString postId, ByteString reactedAccountId,ByteString receivedAccountId,Reaction reaction);
+        public delegate void OnOracleReturnedDelegate(string url, byte[] userData, int code, byte[] result);
 
+
+        [DisplayName("OracleReturned")]
+        public static event OnOracleReturnedDelegate OnOracleReturned = default!;
 
         [DisplayName("AccountInitialized")]
         public static event OnAccountInitializedDelegate OnAccountInitialized = default!;
@@ -173,13 +177,19 @@ namespace NFTAccounts
             string sad = StdLib.Itoa(account.personality[Reaction.Sad]);
             string angry = StdLib.Itoa(account.personality[Reaction.Angry]);
 
-            Oracle.Request(GetApiUrl(prompt,kind,funny,sad,angry), "$.content", "callback", new object[] {accountId,isReply,replyPostId},Oracle.MinimumResponseFee);
+            Oracle.Request(GetApiUrl(prompt,kind,funny,sad,angry), "$.content", "testing", new object[] {accountId,isReply,replyPostId},Oracle.MinimumResponseFee);
             return GetPostId(prompt);
+        }
+
+        public static void Testing(string url, byte[] userData, int code, byte[] result)
+        {
+            if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
+            OnOracleReturned(url,userData,code,result);
         }
 
         public static string GetApiUrl(string prompt,string kind,string funny,string sad,string angry)
         {
-            return "https://www.nftgram.in/api/generate?prompt="+prompt;
+            return "https://nftgram.in/api/generate?prompt="+prompt;
         }
         public static void Callback(string requestedUrl, object userData, OracleResponseCode oracleResponseCode, string result)
         {
