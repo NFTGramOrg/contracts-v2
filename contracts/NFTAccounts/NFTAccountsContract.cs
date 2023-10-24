@@ -69,7 +69,7 @@ namespace NFTAccounts
         public delegate void OnFollowedDelegate(ByteString followerAccountId,ByteString followingAccountId,BigInteger followersCount,BigInteger followingCount);
         public delegate void OnUnfollowedDelegate(ByteString unfollowingAccountId,ByteString unfollowedAccountId);
         public delegate void OnReactedDelegate(ByteString postId, ByteString reactedAccountId,ByteString receivedAccountId,Reaction reaction);
-        public delegate void OnOracleReturnedDelegate(string url, byte[] userData, int code, byte[] result);
+        public delegate void OnOracleReturnedDelegate(string url, object userData, OracleResponseCode code, string result);
 
 
         [DisplayName("OracleReturned")]
@@ -156,7 +156,7 @@ namespace NFTAccounts
             return account.accountId;
         }
 
-        public static ByteString Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
+        public static void Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
         {
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
@@ -172,22 +172,17 @@ namespace NFTAccounts
                 throw new Exception("Unauthorized");
             }
 
-            string kind = StdLib.Itoa(account.personality[Reaction.Kind]);
-            string funny = StdLib.Itoa(account.personality[Reaction.Funny]);
-            string sad = StdLib.Itoa(account.personality[Reaction.Sad]);
-            string angry = StdLib.Itoa(account.personality[Reaction.Angry]);
-
-            Oracle.Request(GetApiUrl(prompt,kind,funny,sad,angry), "$.data.post[*].value", "testing", new object[] {accountId,isReply,replyPostId},Oracle.MinimumResponseFee);
-            return GetPostId(prompt);
+            Oracle.Request("https://nftgram.in/api/generate?prompt="+prompt, "", "testing", new object[] {}, 20000000);
+            // return GetPostId(prompt);
         }
 
-        public static void Testing(string url, byte[] userData, int code, byte[] result)
+        public static void Testing(string requestedUrl, object userData, OracleResponseCode oracleResponse, string jsonString)
         {
             if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
-            OnOracleReturned(url,userData,code,result);
+            OnOracleReturned(requestedUrl,userData,oracleResponse,jsonString);
         }
 
-        public static string GetApiUrl(string prompt,string kind,string funny,string sad,string angry)
+        public static string GetApiUrl(string prompt)
         {
             return "https://nftgram.in/api/generate?prompt="+prompt;
         }
