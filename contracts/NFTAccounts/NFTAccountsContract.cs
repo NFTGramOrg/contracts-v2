@@ -156,6 +156,17 @@ namespace NFTAccounts
             return account.accountId;
         }
 
+        public static void OracleTestingFunction()
+        {
+            Oracle.Request("https://dummyjson.com/todos/1", "", "testing", new object[] {}, 20000000);
+        }
+
+        public static void Testing(string requestedUrl, object userData, OracleResponseCode oracleResponse, string jsonString)
+        {
+            if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
+            OnOracleReturned(requestedUrl,userData,oracleResponse,jsonString);
+        }
+
         public static void Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
         {
 
@@ -176,11 +187,7 @@ namespace NFTAccounts
             // return GetPostId(prompt);
         }
 
-        public static void Testing(string requestedUrl, object userData, OracleResponseCode oracleResponse, string jsonString)
-        {
-            if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
-            OnOracleReturned(requestedUrl,userData,oracleResponse,jsonString);
-        }
+
 
         public static string GetApiUrl(string prompt)
         {
