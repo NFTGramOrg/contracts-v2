@@ -25,13 +25,13 @@ namespace NFTAccounts
     {
         public ByteString postId;
         public string content;
+        public string image;
         public UInt160 prompter;
         public BigInteger kind;
         public BigInteger funny;
         public BigInteger sad;
         public BigInteger angry;
         public Map<ByteString,Reaction> reactions;
-        public bool isReply;
         public ByteString replyPostId;
     }
 
@@ -65,7 +65,7 @@ namespace NFTAccounts
 
 
         public delegate void OnAccountInitializedDelegate(UInt160 nftScriptHash, ByteString tokenId,BigInteger salt, BigInteger kind, BigInteger funny, BigInteger sad, BigInteger angry);
-        public delegate void OnPostedDelegate(ByteString postId,ByteString accountId, string content);
+        public delegate void OnPostedDelegate(ByteString postId,ByteString accountId, string content,string image);
         public delegate void OnFollowedDelegate(ByteString followerAccountId,ByteString followingAccountId,BigInteger followersCount,BigInteger followingCount);
         public delegate void OnUnfollowedDelegate(ByteString unfollowingAccountId,ByteString unfollowedAccountId);
         public delegate void OnReactedDelegate(ByteString postId, ByteString reactedAccountId,ByteString receivedAccountId,Reaction reaction);
@@ -100,9 +100,7 @@ namespace NFTAccounts
             return CryptoLib.Ripemd160(CryptoLib.Sha256(content));
         }
 
-        public static ByteString CreateAccount(UInt160 nftScriptHash){
-            var key = new byte[] { Prefix_TokenId };
-            var tokenId = (ByteString)Storage.Get(key);
+        public static ByteString CreateAccount(UInt160 nftScriptHash,ByteString tokenId){
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
             ByteString accountId=GetAccountId(nftScriptHash,tokenId);
@@ -151,23 +149,17 @@ namespace NFTAccounts
 
             accounts.Put(accountId, StdLib.Serialize(account));
             OnAccountInitialized(nftScriptHash,tokenId,salt,kind,funny,sad,angry);
-            tokenId += 1;
 
             return account.accountId;
         }
 
-        public static void OracleTestingFunction()
+        public static string[] ConvertByteArrayToString(byte[] data)
         {
-            Oracle.Request("https://dummyjson.com/todos/1", "", "testing", new object[] {}, 20000000);
+            return (string[])StdLib.JsonDeserialize((ByteString)data);
         }
 
-        public static void Testing(string requestedUrl, object userData, OracleResponseCode oracleResponse, string jsonString)
-        {
-            if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
-            OnOracleReturned(requestedUrl,userData,oracleResponse,jsonString);
-        }
 
-        public static void Post(ByteString accountId,string prompt,bool isReply,ByteString replyPostId)
+        public static ByteString Post(ByteString accountId,string prompt,ByteString replyPostId)
         {
 
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
@@ -183,60 +175,61 @@ namespace NFTAccounts
                 throw new Exception("Unauthorized");
             }
 
-            Oracle.Request("https://nftgram.in/api/generate?prompt="+prompt, "", "testing", new object[] {}, 20000000);
-            // return GetPostId(prompt);
-        }
+            string callback = "callback"; // callback method
+            ByteString postId=GetPostId(prompt);
+            object[] userdata = new object[]{accountId,postId,replyPostId} ; // arbitrary type
+            long gasForResponse = Oracle.MinimumResponseFee;
 
+            string url=GetApiUrl(prompt);
+            string filter="$.data.post[*].value";
+
+            Oracle.Request(url, filter, callback, userdata, gasForResponse);
+            return postId;
+        }
 
 
         public static string GetApiUrl(string prompt)
         {
             return "https://nftgram.in/api/generate?prompt="+prompt;
         }
-        public static void Callback(string requestedUrl, object userData, OracleResponseCode oracleResponseCode, string result)
+
+
+        public static void Callback(string requestedUrl, object[] userData, OracleResponseCode oracleResponseCode, byte[] result)
         {
             if (Runtime.CallingScriptHash != Oracle.Hash) throw new Exception("Unauthorized!");
 
             if (oracleResponseCode != OracleResponseCode.Success) throw new Exception("Error Code: "+(byte)oracleResponseCode);
-
-            var jsonArrayValues=(string[])StdLib.JsonDeserialize(result);
-            var content=jsonArrayValues[0];
-
-            var mydata=(object[])userData;
-            var accountId=(ByteString)mydata[0];
-            var isReply=(bool)mydata[1];
-            var replyPostId=(ByteString)mydata[2];
-
+            string[] responseData=ConvertByteArrayToString(result);
+            
             StorageMap accounts = new(Storage.CurrentContext, Prefix_Accounts);
-            Account account = (Account)StdLib.Deserialize(accounts.Get(accountId));
+            Account account = (Account)StdLib.Deserialize(accounts.Get((ByteString)userData[0]));
 
             UInt160 nftScriptHash=account.nftScriptHash;
             ByteString tokenId=account.tokenId;
             UInt160 prompter=GetOwner(nftScriptHash, tokenId);
 
-            ByteString postId = GetPostId(content);
-            if(account.posts.HasKey(postId))
+            if(account.posts.HasKey((ByteString)userData[1]))
             {
                 throw new Exception("Post already exists");
             }
 
             Post post = new Post();
-            post.postId = postId;
-            post.content = content;
+            post.postId = (ByteString)userData[1];
+            post.content = responseData[0];
+            post.image=responseData[1];
             post.prompter = prompter;
             post.kind = 0;
             post.funny = 0;
             post.sad = 0;
             post.angry = 0;
-            post.isReply=isReply;
-            post.replyPostId=replyPostId;
+            post.replyPostId=(ByteString)userData[2];
             post.reactions = new Map<ByteString, Reaction>();
 
-            account.posts[postId]=post;
+            account.posts[(ByteString)userData[1]]=post;
 
-            accounts.Put(accountId, StdLib.Serialize(account));
+            accounts.Put((ByteString)userData[0], StdLib.Serialize(account));
 
-            OnPosted(postId,accountId, content);
+            OnPosted((ByteString)userData[1],(ByteString)userData[0], responseData[0],responseData[1]);
         }
 
       
